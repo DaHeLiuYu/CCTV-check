@@ -34,7 +34,7 @@
     
     h2 { margin-top: 0; font-size: 20px; border-left: 4px solid var(--primary); padding-left: 10px; }
     
-    /* 步驟選擇器器 */
+    /* 步驟選擇器 */
     .form-group { margin-bottom: 20px; }
     label { display: block; font-weight: bold; margin-bottom: 8px; }
     
@@ -93,6 +93,7 @@
     <div id="tab-form" class="card">
       <h2>Step 1：選擇您的戶號</h2>
       
+      <!-- 第一排：棟別選單 -->
       <div class="form-group">
         <label>棟別</label>
         <div class="btn-group-toggle">
@@ -101,14 +102,15 @@
         </div>
       </div>
 
+      <!-- 第二排：左邊門牌(1~10)、右邊樓層(4~19) -->
       <div class="form-group" style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+          <label>門牌號碼</label>
+          <select id="select-unit"></select>
+        </div>
         <div style="flex: 1;">
           <label>樓層</label>
           <select id="select-floor"></select>
-        </div>
-        <div style="flex: 1;">
-          <label>戶號</label>
-          <select id="select-unit"></select>
         </div>
       </div>
 
@@ -173,7 +175,7 @@
   <div id="img-modal" class="modal">
     <div class="modal-content">
       <h3 style="margin-top:0;">對講機選單名稱對照</h3>
-      <img src="intercom-guide.jpg.jpg" alt="對講機對照圖" class="modal-img">
+      <img src="intercom-guide.jpg" alt="對講機對照圖" class="modal-img">
       <button class="modal-close" onclick="closeImageModal()">關閉</button>
     </div>
   </div>
@@ -188,7 +190,7 @@
   </div>
 
   <script>
-    // 🔗 貼上你的 Google Web App URL
+    // 🔗 Google Web App API 網址
     const API_URL = "https://script.google.com/macros/s/AKfycbxVODxMkc_5O_QaSkzBI7ub77mU0wA4y_jN8YR3EtEKM8ptOsVjon60uOeSdxNvEW_s/exec";
 
     // 狀態變數
@@ -198,19 +200,38 @@
 
     // 初始化下拉選單
     window.onload = function() {
+      // 1. 初始化樓層選單 (右邊: 04樓~19樓)
       const floorSelect = document.getElementById('select-floor');
+      floorSelect.innerHTML = '';
       for (let f = 19; f >= 4; f--) {
         floorSelect.add(new Option(`${f} 樓`, String(f).padStart(2, '0')));
       }
 
-      const unitSelect = document.getElementById('select-unit');
-      for (let u = 1; u <= 10; u++) {
-        unitSelect.add(new Option(`${u} 號`, String(u).padStart(2, '0')));
-      }
+      // 2. 初始化門牌選單 (左邊: A1~A10 / B1~B10)
+      updateUnitOptions();
 
       renderMatrixTable();
       fetchDashboardData();
     };
+
+    // 切換棟別時，同步更新門牌選項名稱 (A1~A10 或 B1~B10)
+    function selectBuilding(b) {
+      currentBuilding = b;
+      document.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      
+      updateUnitOptions();
+    }
+
+    function updateUnitOptions() {
+      const unitSelect = document.getElementById('select-unit');
+      unitSelect.innerHTML = '';
+      for (let u = 1; u <= 10; u++) {
+        const unitNumStr = String(u).padStart(2, '0');
+        const label = `${currentBuilding}${u}`; // 顯示為 A1, A2... 或 B1, B2...
+        unitSelect.add(new Option(label, unitNumStr));
+      }
+    }
 
     function switchTab(tab) {
       document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -223,14 +244,8 @@
       } else {
         document.querySelectorAll('.nav-tab')[1].classList.add('active');
         document.getElementById('tab-dashboard').classList.remove('hidden');
-        fetchDashboardData(); // 切換時自動刷資料
+        fetchDashboardData();
       }
-    }
-
-    function selectBuilding(b) {
-      currentBuilding = b;
-      document.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
     }
 
     function setStatus(item, val) {
@@ -252,7 +267,7 @@
 
       document.getElementById('modal-title').innerText = "請確認您的回報資料";
       document.getElementById('modal-body').innerHTML = `
-        <p><b>門牌號碼：</b>${currentBuilding}棟 ${parseInt(floor)}樓 ${parseInt(unit)}號 (${key})</p>
+        <p><b>門牌號碼：</b>${currentBuilding}棟 ${parseInt(floor)}樓 (${currentBuilding}${parseInt(unit)})</p>
         <p>• 1樓大門：<b>${formData.gate}</b></p>
         <p>• 1樓大廳：<b>${formData.lobby}</b></p>
         <p>• 住戶門口：<b>${formData.door}</b></p>
@@ -299,7 +314,6 @@
       const table = document.getElementById('matrix-table');
       let html = '<tr><th>樓層</th>';
       
-      // 標題列: A1...A10, B1...B10
       ['A', 'B'].forEach(b => {
         for (let u = 1; u <= 10; u++) {
           html += `<th>${b}${u}</th>`;
@@ -307,7 +321,6 @@
       });
       html += '</tr>';
 
-      // 樓層 19F ~ 4F
       for (let f = 19; f >= 4; f--) {
         const floorStr = String(f).padStart(2, '0');
         html += `<tr><b><td>${f}F</td></b>`;
@@ -359,7 +372,7 @@
       const item = dashboardData[key] || { gate: '未回報', lobby: '未回報', door: '未回報', count: 0, lastUpdate: '無' };
       const [b, f, u] = key.split('-');
 
-      document.getElementById('modal-title').innerText = `📍 ${b}棟 ${parseInt(f)}樓 ${parseInt(u)}號`;
+      document.getElementById('modal-title').innerText = `📍 ${b}棟 ${parseInt(f)}樓 (${b}${parseInt(u)})`;
       document.getElementById('modal-body').innerHTML = `
         <p>• 1樓大門：<b>${item.gate}</b></p>
         <p>• 1樓大廳：<b>${item.lobby}</b></p>
