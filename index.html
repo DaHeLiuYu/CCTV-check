@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Line / FB 網頁預覽卡片 (OG Tag) -->
+  <meta property="og:title" content="🏢 社區對講機與監視器報修系統">
+  <meta property="og:description" content="免登入！只需 10 秒即可回報您家中的監視器狀態，隨時查看全社區維修狀況。">
+  <meta property="og:type" content="website">
+
+  <title>社區對講機與監視器報修系統</title>
+
+  <style>
+    :root {
+      --primary: #007bff;
+      --success: #28a745;
+      --danger: #dc3545;
+      --gray: #6c757d;
+      --light-gray: #e9ecef;
+      --bg: #f8f9fa;
+    }
+
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); margin: 0; padding: 0; color: #333; }
+
+    /* 頂部導覽頁籤 */
+    .nav-tabs { display: flex; background: #fff; border-bottom: 2px solid #dee2e6; position: sticky; top: 0; z-index: 100; }
+    .nav-tab { flex: 1; padding: 15px; text-align: center; font-weight: bold; cursor: pointer; background: #fff; border: none; font-size: 16px; color: var(--gray); }
+    .nav-tab.active { color: var(--primary); border-bottom: 3px solid var(--primary); background: #f0f7ff; }
+
+    .container { max-width: 1000px; margin: 20px auto; padding: 0 15px; }
+    .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    
+    h2 { margin-top: 0; font-size: 20px; border-left: 4px solid var(--primary); padding-left: 10px; }
+    
+    /* 步驟選擇器器 */
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-weight: bold; margin-bottom: 8px; }
+    
+    /* 大按鈕選單 */
+    .btn-group-toggle { display: flex; gap: 10px; }
+    .btn-toggle { flex: 1; padding: 12px; border: 2px solid var(--light-gray); background: #fff; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
+    .btn-toggle.active { border-color: var(--primary); background: #e7f1ff; color: var(--primary); }
+
+    select { width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; background: #fff; }
+
+    /* 監視器狀態二選一按鈕 */
+    .status-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+    .status-item:last-child { border-bottom: none; }
+    .status-btn-group { display: flex; gap: 8px; }
+    .btn-status { padding: 8px 16px; border-radius: 20px; border: 1px solid #ccc; background: #fff; cursor: pointer; font-weight: bold; }
+    .btn-status.ok.active { background: var(--success); color: #fff; border-color: var(--success); }
+    .btn-status.ng.active { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+    .btn-submit { width: 100%; padding: 15px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    
+    /* 點擊查看圖片連結 */
+    .img-link { color: var(--primary); text-decoration: underline; cursor: pointer; font-size: 14px; margin-left: 5px; font-weight: normal; }
+
+    /* 矩陣 Dashboard 樣式 */
+    .stats-bar { display: flex; gap: 10px; margin-bottom: 15px; }
+    .stat-card { flex: 1; background: #fff; padding: 12px; border-radius: 8px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    .stat-num { font-size: 20px; font-weight: bold; color: var(--primary); }
+
+    .table-container { overflow-x: auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; text-align: center; font-size: 12px; min-width: 800px; }
+    th, td { border: 1px solid #e9ecef; padding: 8px 4px; }
+    th { background: #f1f3f5; position: sticky; top: 0; }
+    .cell-dot { cursor: pointer; padding: 6px 2px; border-radius: 4px; transition: background 0.2s; }
+    .cell-dot:hover { background: #e2e8f0; }
+
+    /* 彈窗 Modal */
+    .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: #fff; padding: 20px; border-radius: 12px; max-width: 90%; width: 400px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+    .modal-img { max-width: 100%; border-radius: 8px; }
+    .modal-close { background: var(--gray); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; float: right; cursor: pointer; margin-top: 10px; }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- 頂部頁籤切換 -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('form')">📝 我要回報</button>
+    <button class="nav-tab" onclick="switchTab('dashboard')">📊 社區一覽表</button>
+  </div>
+
+  <div class="container">
+    
+    <!-- ================= 前端 1：住戶回報頁 ================= -->
+    <div id="tab-form" class="card">
+      <h2>Step 1：選擇您的戶號</h2>
+      
+      <div class="form-group">
+        <label>棟別</label>
+        <div class="btn-group-toggle">
+          <button type="button" class="btn-toggle active" onclick="selectBuilding('A')">A 棟</button>
+          <button type="button" class="btn-toggle" onclick="selectBuilding('B')">B 棟</button>
+        </div>
+      </div>
+
+      <div class="form-group" style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+          <label>樓層</label>
+          <select id="select-floor"></select>
+        </div>
+        <div style="flex: 1;">
+          <label>戶號</label>
+          <select id="select-unit"></select>
+        </div>
+      </div>
+
+      <h2>
+        Step 2：請點選監視器狀況
+        <span class="img-link" onclick="openImageModal()">[ 📷 對講機選單對照圖 ]</span>
+      </h2>
+
+      <div class="status-item">
+        <span>1 樓大門監視器</span>
+        <div class="status-btn-group">
+          <button type="button" class="btn-status ok active" onclick="setStatus('gate', '正常')">正常</button>
+          <button type="button" class="btn-status ng" onclick="setStatus('gate', '故障')">故障</button>
+        </div>
+      </div>
+
+      <div class="status-item">
+        <span>1 樓大廳監視器</span>
+        <div class="status-btn-group">
+          <button type="button" class="btn-status ok active" onclick="setStatus('lobby', '正常')">正常</button>
+          <button type="button" class="btn-status ng" onclick="setStatus('lobby', '故障')">故障</button>
+        </div>
+      </div>
+
+      <div class="status-item">
+        <span>住戶門口監視器</span>
+        <div class="status-btn-group">
+          <button type="button" class="btn-status ok active" onclick="setStatus('door', '正常')">正常</button>
+          <button type="button" class="btn-status ng" onclick="setStatus('door', '故障')">故障</button>
+        </div>
+      </div>
+
+      <button type="button" class="btn-submit" onclick="confirmSubmit()">確定送出資料</button>
+    </div>
+
+    <!-- ================= 前端 2：社區一覽表 Dashboard ================= -->
+    <div id="tab-dashboard" class="card hidden">
+      <h2>社區監視器故障狀況一覽表</h2>
+      <p style="font-size: 12px; color: var(--gray);">提示：燈號順序為 <code>[大門 | 大廳 | 門口]</code>，🟢正常 🔴故障 ⚪未回報。點擊方格可看詳細資訊。</p>
+      
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div style="font-size: 12px; color: var(--gray);">已回報戶數</div>
+          <div class="stat-num" id="stat-reported">0 / 320</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size: 12px; color: var(--gray);">大廳故障戶數</div>
+          <div class="stat-num" id="stat-lobby-ng" style="color: var(--danger);">0</div>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table id="matrix-table">
+          <!-- 矩陣動態渲染 -->
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 對講機對照圖 Modal 彈窗 -->
+  <div id="img-modal" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-top:0;">對講機選單名稱對照</h3>
+      <img src="對講機說明.jpg" alt="對講機對照圖" class="modal-img">
+      <button class="modal-close" onclick="closeImageModal()">關閉</button>
+    </div>
+  </div>
+
+  <!-- 確認/詳細資訊 Modal 彈窗 -->
+  <div id="info-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="modal-title" style="margin-top:0;">資料確認</h3>
+      <div id="modal-body"></div>
+      <div id="modal-actions" style="margin-top: 15px; text-align: right;"></div>
+    </div>
+  </div>
+
+  <script>
+    // 🔗 貼上你的 Google Web App URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbxVODxMkc_5O_QaSkzBI7ub77mU0wA4y_jN8YR3EtEKM8ptOsVjon60uOeSdxNvEW_s/exec";
+
+    // 狀態變數
+    let currentBuilding = 'A';
+    let formData = { gate: '正常', lobby: '正常', door: '正常' };
+    let dashboardData = {};
+
+    // 初始化下拉選單
+    window.onload = function() {
+      const floorSelect = document.getElementById('select-floor');
+      for (let f = 19; f >= 4; f--) {
+        floorSelect.add(new Option(`${f} 樓`, String(f).padStart(2, '0')));
+      }
+
+      const unitSelect = document.getElementById('select-unit');
+      for (let u = 1; u <= 10; u++) {
+        unitSelect.add(new Option(`${u} 號`, String(u).padStart(2, '0')));
+      }
+
+      renderMatrixTable();
+      fetchDashboardData();
+    };
+
+    function switchTab(tab) {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-form').classList.add('hidden');
+      document.getElementById('tab-dashboard').classList.add('hidden');
+
+      if (tab === 'form') {
+        document.querySelectorAll('.nav-tab')[0].classList.add('active');
+        document.getElementById('tab-form').classList.remove('hidden');
+      } else {
+        document.querySelectorAll('.nav-tab')[1].classList.add('active');
+        document.getElementById('tab-dashboard').classList.remove('hidden');
+        fetchDashboardData(); // 切換時自動刷資料
+      }
+    }
+
+    function selectBuilding(b) {
+      currentBuilding = b;
+      document.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    function setStatus(item, val) {
+      formData[item] = val;
+      const parent = event.target.parentElement;
+      parent.querySelectorAll('.btn-status').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    // 圖片彈窗控制
+    function openImageModal() { document.getElementById('img-modal').style.display = 'flex'; }
+    function closeImageModal() { document.getElementById('img-modal').style.display = 'none'; }
+
+    // 防呆送出確認
+    function confirmSubmit() {
+      const floor = document.getElementById('select-floor').value;
+      const unit = document.getElementById('select-unit').value;
+      const key = `${currentBuilding}-${floor}-${unit}`;
+
+      document.getElementById('modal-title').innerText = "請確認您的回報資料";
+      document.getElementById('modal-body').innerHTML = `
+        <p><b>門牌號碼：</b>${currentBuilding}棟 ${parseInt(floor)}樓 ${parseInt(unit)}號 (${key})</p>
+        <p>• 1樓大門：<b>${formData.gate}</b></p>
+        <p>• 1樓大廳：<b>${formData.lobby}</b></p>
+        <p>• 住戶門口：<b>${formData.door}</b></p>
+      `;
+      document.getElementById('modal-actions').innerHTML = `
+        <button class="modal-close" style="background:#ccc; color:#000; margin-right:8px;" onclick="closeInfoModal()">修改</button>
+        <button class="modal-close" style="background:var(--success);" onclick="submitData('${key}')">確認送出</button>
+      `;
+      document.getElementById('info-modal').style.display = 'flex';
+    }
+
+    function closeInfoModal() { document.getElementById('info-modal').style.display = 'none'; }
+
+    // 送出資料至 API
+    function submitData(key) {
+      document.getElementById('modal-body').innerHTML = "<p>⏳ 資料傳送中，請稍候...</p>";
+      document.getElementById('modal-actions').innerHTML = "";
+
+      fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          key: key,
+          gate: formData.gate,
+          lobby: formData.lobby,
+          door: formData.door
+        })
+      })
+      .then(res => res.json())
+      .then(res => {
+        document.getElementById('modal-title').innerText = "✅ 回報完成！";
+        document.getElementById('modal-body').innerHTML = "<p>感謝您的配合，您的最新資料已即時更新至社區看板。</p>";
+        document.getElementById('modal-actions').innerHTML = `
+          <button class="modal-close" style="background:var(--primary);" onclick="closeInfoModal(); switchTab('dashboard');">查看社區一覽表</button>
+        `;
+      })
+      .catch(err => {
+        alert("送出失敗，請稍後再試：" + err);
+        closeInfoModal();
+      });
+    }
+
+    // 渲染一覽表 HTML 骨架
+    function renderMatrixTable() {
+      const table = document.getElementById('matrix-table');
+      let html = '<tr><th>樓層</th>';
+      
+      // 標題列: A1...A10, B1...B10
+      ['A', 'B'].forEach(b => {
+        for (let u = 1; u <= 10; u++) {
+          html += `<th>${b}${u}</th>`;
+        }
+      });
+      html += '</tr>';
+
+      // 樓層 19F ~ 4F
+      for (let f = 19; f >= 4; f--) {
+        const floorStr = String(f).padStart(2, '0');
+        html += `<tr><b><td>${f}F</td></b>`;
+        
+        ['A', 'B'].forEach(b => {
+          for (let u = 1; u <= 10; u++) {
+            const unitStr = String(u).padStart(2, '0');
+            const key = `${b}-${floorStr}-${unitStr}`;
+            html += `<td id="cell-${key}" class="cell-dot" onclick="showCellDetail('${key}')">⚪⚪⚪</td>`;
+          }
+        });
+        html += '</tr>';
+      }
+      table.innerHTML = html;
+    }
+
+    // 從 API 抓取資料並更新 Dashboard
+    function fetchDashboardData() {
+      fetch(API_URL)
+        .then(res => res.json())
+        .then(data => {
+          let reportedCount = 0;
+          let lobbyNgCount = 0;
+
+          data.forEach(item => {
+            dashboardData[item.key] = item;
+            const cell = document.getElementById(`cell-${item.key}`);
+            if (cell) {
+              const gIcon = item.gate === '正常' ? '🟢' : (item.gate === '故障' ? '🔴' : '⚪');
+              const lIcon = item.lobby === '正常' ? '🟢' : (item.lobby === '故障' ? '🔴' : '⚪');
+              const dIcon = item.door === '正常' ? '🟢' : (item.door === '故障' ? '🔴' : '⚪');
+              
+              cell.innerHTML = `${gIcon}${lIcon}${dIcon}`;
+
+              if (item.gate !== '未回報' || item.lobby !== '未回報' || item.door !== '未回報') {
+                reportedCount++;
+              }
+              if (item.lobby === '故障') lobbyNgCount++;
+            }
+          });
+
+          document.getElementById('stat-reported').innerText = `${reportedCount} / 320`;
+          document.getElementById('stat-lobby-ng').innerText = lobbyNgCount;
+        });
+    }
+
+    // 點擊方格顯示詳細資訊彈窗
+    function showCellDetail(key) {
+      const item = dashboardData[key] || { gate: '未回報', lobby: '未回報', door: '未回報', count: 0, lastUpdate: '無' };
+      const [b, f, u] = key.split('-');
+
+      document.getElementById('modal-title').innerText = `📍 ${b}棟 ${parseInt(f)}樓 ${parseInt(u)}號`;
+      document.getElementById('modal-body').innerHTML = `
+        <p>• 1樓大門：<b>${item.gate}</b></p>
+        <p>• 1樓大廳：<b>${item.lobby}</b></p>
+        <p>• 住戶門口：<b>${item.door}</b></p>
+        <hr style="border:0; border-top:1px solid #eee;">
+        <p style="font-size:12px; color:var(--gray);">
+          更新次數：第 ${item.count} 次<br>
+          最後更新：${item.lastUpdate || '尚未回報'}
+        </p>
+      `;
+      document.getElementById('modal-actions').innerHTML = `
+        <button class="modal-close" onclick="closeInfoModal()">關閉</button>
+      `;
+      document.getElementById('info-modal').style.display = 'flex';
+    }
+  </script>
+</body>
+</html>
