@@ -32,7 +32,7 @@
     .nav-tab { flex: 1; padding: 15px; text-align: center; font-weight: bold; cursor: pointer; background: #fff; border: none; font-size: 16px; color: var(--gray); }
     .nav-tab.active { color: var(--primary); border-bottom: 3px solid var(--primary); background: #f0f7ff; }
 
-    .container { max-width: 1000px; margin: 20px auto; padding: 0 15px; }
+    .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
     .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
     
     h2 { margin-top: 0; font-size: 20px; border-left: 4px solid var(--primary); padding-left: 10px; }
@@ -62,16 +62,36 @@
     .img-link { color: var(--primary); text-decoration: underline; cursor: pointer; font-size: 14px; margin-left: 5px; font-weight: normal; }
 
     /* 矩陣 Dashboard 樣式 */
-    .stats-bar { display: flex; gap: 10px; margin-bottom: 15px; }
-    .stat-card { flex: 1; background: #fff; padding: 12px; border-radius: 8px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    .stats-bar { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+    .stat-card { flex: 1; min-width: 130px; background: #fff; padding: 12px; border-radius: 8px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.05); border: 1px solid #eee; }
     .stat-num { font-size: 20px; font-weight: bold; color: var(--primary); }
 
     .table-container { overflow-x: auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    table { width: 100%; border-collapse: collapse; text-align: center; font-size: 12px; min-width: 800px; }
-    th, td { border: 1px solid #e9ecef; padding: 8px 4px; }
+    table { width: 100%; border-collapse: collapse; text-align: center; font-size: 12px; min-width: 900px; }
+    th, td { border: 1px solid #e9ecef; padding: 8px 2px; }
     th { background: #f1f3f5; position: sticky; top: 0; }
-    .cell-dot { cursor: pointer; padding: 6px 2px; border-radius: 4px; transition: background 0.2s; }
+    .cell-dot { cursor: pointer; padding: 6px 1px; border-radius: 4px; transition: background 0.2s; white-space: nowrap; }
     .cell-dot:hover { background: #e2e8f0; }
+
+    /* 🖥️ 電腦大螢幕（放大/全螢幕）自動滿版無橫向滾動條 */
+    @media (min-width: 1024px) {
+      .table-container {
+        overflow-x: hidden;
+        width: 100%;
+      }
+      table {
+        min-width: 100%;
+        table-layout: fixed;
+      }
+      th, td {
+        padding: 6px 1px;
+        font-size: 11px;
+      }
+      .cell-dot {
+        font-size: 11px;
+        letter-spacing: -1px;
+      }
+    }
 
     /* 彈窗 Modal */
     .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
@@ -105,7 +125,7 @@
         </div>
       </div>
 
-      <!-- 第二排：左邊門牌(1~10)、右邊樓層(4~19) -->
+      <!-- 第二排：左邊門牌、右邊樓層(4~19) -->
       <div class="form-group" style="display: flex; gap: 10px;">
         <div style="flex: 1;">
           <label>門牌號碼</label>
@@ -160,8 +180,16 @@
           <div class="stat-num" id="stat-reported">0 / 320</div>
         </div>
         <div class="stat-card">
-          <div style="font-size: 12px; color: var(--gray);">大廳故障戶數</div>
+          <div style="font-size: 12px; color: var(--gray);">1樓戶外</div>
+          <div class="stat-num" id="stat-gate-ng" style="color: var(--danger);">0</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size: 12px; color: var(--gray);">1樓大廳</div>
           <div class="stat-num" id="stat-lobby-ng" style="color: var(--danger);">0</div>
+        </div>
+        <div class="stat-card">
+          <div style="font-size: 12px; color: var(--gray);">住戶門口</div>
+          <div class="stat-num" id="stat-door-ng" style="color: var(--danger);">0</div>
         </div>
       </div>
 
@@ -196,6 +224,9 @@
     // 🔗 Google Web App API 網址
     const API_URL = "https://script.google.com/macros/s/AKfycbxVODxMkc_5O_QaSkzBI7ub77mU0wA4y_jN8YR3EtEKM8ptOsVjon60uOeSdxNvEW_s/exec";
 
+    // 正確門牌清單 (排除 04 戶，包含 11 戶)
+    const UNITS = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11];
+
     // 狀態變數
     let currentBuilding = 'A';
     let formData = { gate: '正常', lobby: '正常', door: '正常' };
@@ -210,14 +241,14 @@
         floorSelect.add(new Option(`${f} 樓`, String(f).padStart(2, '0')));
       }
 
-      // 2. 初始化門牌選單 (左邊: A1~A10 / B1~B10)
+      // 2. 初始化門牌選單 (左邊: A1~A3, A5~A11 / B1~B3, B5~B11)
       updateUnitOptions();
 
       renderMatrixTable();
       fetchDashboardData();
     };
 
-    // 切換棟別時，同步更新門牌選項名稱 (A1~A10 或 B1~B10)
+    // 切換棟別時，同步更新門牌選項名稱
     function selectBuilding(b) {
       currentBuilding = b;
       document.querySelectorAll('.btn-toggle').forEach(btn => btn.classList.remove('active'));
@@ -229,11 +260,11 @@
     function updateUnitOptions() {
       const unitSelect = document.getElementById('select-unit');
       unitSelect.innerHTML = '';
-      for (let u = 1; u <= 10; u++) {
+      UNITS.forEach(u => {
         const unitNumStr = String(u).padStart(2, '0');
-        const label = `${currentBuilding}${u}`; // 顯示為 A1, A2... 或 B1, B2...
+        const label = `${currentBuilding}${u}`; // 顯示為 A1...A11
         unitSelect.add(new Option(label, unitNumStr));
-      }
+      });
     }
 
     function switchTab(tab) {
@@ -318,9 +349,9 @@
       let html = '<tr><th>樓層</th>';
       
       ['A', 'B'].forEach(b => {
-        for (let u = 1; u <= 10; u++) {
+        UNITS.forEach(u => {
           html += `<th>${b}${u}</th>`;
-        }
+        });
       });
       html += '</tr>';
 
@@ -329,11 +360,11 @@
         html += `<tr><b><td>${f}F</td></b>`;
         
         ['A', 'B'].forEach(b => {
-          for (let u = 1; u <= 10; u++) {
+          UNITS.forEach(u => {
             const unitStr = String(u).padStart(2, '0');
             const key = `${b}-${floorStr}-${unitStr}`;
             html += `<td id="cell-${key}" class="cell-dot" onclick="showCellDetail('${key}')">⚪⚪⚪</td>`;
-          }
+          });
         });
         html += '</tr>';
       }
@@ -346,7 +377,9 @@
         .then(res => res.json())
         .then(data => {
           let reportedCount = 0;
+          let gateNgCount = 0;
           let lobbyNgCount = 0;
+          let doorNgCount = 0;
 
           data.forEach(item => {
             dashboardData[item.key] = item;
@@ -361,12 +394,16 @@
               if (item.gate !== '未回報' || item.lobby !== '未回報' || item.door !== '未回報') {
                 reportedCount++;
               }
+              if (item.gate === '故障') gateNgCount++;
               if (item.lobby === '故障') lobbyNgCount++;
+              if (item.door === '故障') doorNgCount++;
             }
           });
 
           document.getElementById('stat-reported').innerText = `${reportedCount} / 320`;
+          document.getElementById('stat-gate-ng').innerText = gateNgCount;
           document.getElementById('stat-lobby-ng').innerText = lobbyNgCount;
+          document.getElementById('stat-door-ng').innerText = doorNgCount;
         });
     }
 
